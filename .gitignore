@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Datasets (downloaded, not versioned)
+data/
+
+# Vivado / xsim build output
+sim_build/
+xsim.dir/
+.Xil/
+*.jou
+*.log
+*.pb
+*.wdb
+*.str
+build/
+vivado_project/
+
+# Local tool settings
+.claude/
