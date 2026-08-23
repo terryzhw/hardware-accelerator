@@ -6,9 +6,13 @@
 from pathlib import Path
 
 import numpy as np
+import torch
+from torch import nn
 from torchvision import datasets
 
 REPO = Path(__file__).resolve().parent.parent
+
+torch.manual_seed(0)
 
 
 # ---------------------------------------------------------------------------
@@ -29,10 +33,37 @@ def load_mnist():
 
 
 # ---------------------------------------------------------------------------
+# Float training
+
+def train_model(x, y, epochs=10):
+    model = nn.Sequential(nn.Linear(784, 32), nn.ReLU(), nn.Linear(32, 10))
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    x = torch.tensor(x, dtype=torch.float32) / 128
+    y = torch.tensor(y)
+    for epoch in range(epochs):
+        order = torch.randperm(len(x))
+        for i in range(0, len(x), 128):
+            batch = order[i:i + 128]
+            opt.zero_grad()
+            loss = nn.functional.cross_entropy(model(x[batch]), y[batch])
+            loss.backward()
+            opt.step()
+    return model
+
+
+def float_accuracy(model, x, y):
+    with torch.no_grad():
+        out = model(torch.tensor(x, dtype=torch.float32) / 128)
+    return (out.argmax(1).numpy() == y).mean()
+
+
+# ---------------------------------------------------------------------------
 def main():
     (train_x, train_y), (val_x, val_y), (test_x, test_y) = load_mnist()
-    print(f"train {train_x.shape}  val {val_x.shape}  test {test_x.shape}  "
-          f"pixel range {train_x.min()}..{train_x.max()}")
+
+    model = train_model(train_x, train_y)
+    print(f"float accuracy: val {float_accuracy(model, val_x, val_y):.4f}  "
+          f"test {float_accuracy(model, test_x, test_y):.4f}")
 
 
 if __name__ == "__main__":
