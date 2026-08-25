@@ -35,9 +35,10 @@ def load_mnist():
 # ---------------------------------------------------------------------------
 # Float training
 
-def train_model(x, y, epochs=10):
+def train_model(x, y, epochs=30):
     model = nn.Sequential(nn.Linear(784, 32), nn.ReLU(), nn.Linear(32, 10))
-    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    opt = torch.optim.Adam(model.parameters(), lr=3e-3, weight_decay=1e-5)
+    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, epochs)
     x = torch.tensor(x, dtype=torch.float32) / 128
     y = torch.tensor(y)
     for epoch in range(epochs):
@@ -48,6 +49,7 @@ def train_model(x, y, epochs=10):
             loss = nn.functional.cross_entropy(model(x[batch]), y[batch])
             loss.backward()
             opt.step()
+        sched.step()
     return model
 
 
