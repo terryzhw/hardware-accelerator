@@ -1,4 +1,5 @@
-"""Train the 784 -> 32 -> 10 digit network on MNIST.
+"""Train the 784 -> 32 -> 10 digit network and convert it to integers the way the
+hardware will use them.
 
     python python/train.py
 """
@@ -60,12 +61,67 @@ def float_accuracy(model, x, y):
 
 
 # ---------------------------------------------------------------------------
+# Integer conversion. Every scale is a power of two so the hardware only needs shifts.
+#   input x:   real = x / 2^7
+#   weights:   real = w / 2^F   (F as large as possible while |w| <= 127)
+#   hidden h:  real = h / 2^FH
+
+def frac_bits(max_value):
+    """Largest F with max_value * 2^F <= 127."""
+    f = 0
+    while max_value * 2 ** (f + 1) <= 127:
+        f += 1
+    while max_value * 2 ** f > 127:
+        f -= 1
+    return f
+
+
+def quantize(model, train_x):
+    w1 = model[0].weight.detach().numpy().astype(np.float64)
+    b1 = model[0].bias.detach().numpy().astype(np.float64)
+    w2 = model[2].weight.detach().numpy().astype(np.float64)
+    b2 = model[2].bias.detach().numpy().astype(np.float64)
+
+    f1 = frac_bits(np.abs(w1).max())
+    f2 = frac_bits(np.abs(w2).max())
+    # Hidden scale: the largest hidden value seen on the training set maps to <= 127
+    hidden = np.maximum(train_x / 128 @ w1.T + b1, 0)
+    fh = frac_bits(hidden.max())
+
+    q = {
+        "w1": np.round(w1 * 2 ** f1).astype(np.int64),
+        "b1": np.round(b1 * 2 ** (7 + f1)).astype(np.int64),   # same scale as x * w1
+        "w2": np.round(w2 * 2 ** f2).astype(np.int64),
+        "b2": np.round(b2 * 2 ** (fh + f2)).astype(np.int64),  # same scale as h * w2
+        "shift": 7 + f1 - fh,                                  # layer 1 sum -> hidden scale
+    }
+    return q
+
+
+def int_forward(q, x):
+    """Bit-exact model of the hardware. x: (N, 784) ints 0..127."""
+    x = np.asarray(x, dtype=np.int64)
+    acc1 = x @ q["w1"].T + q["b1"]
+    # ReLU, then divide by 2^shift rounding half up, then clamp to 127
+    s = q["shift"]
+    hidden = np.where(acc1 <= 0, 0, np.minimum((acc1 + (1 << (s - 1))) >> s, 127))
+    scores = hidden @ q["w2"].T + q["b2"]
+    return hidden, scores, scores.argmax(1)   # argmax picks the lowest index on a tie
+
+
+# ---------------------------------------------------------------------------
 def main():
     (train_x, train_y), (val_x, val_y), (test_x, test_y) = load_mnist()
 
     model = train_model(train_x, train_y)
+    q = quantize(model, train_x)
+    assert np.abs(q["w1"]).max() <= 127 and np.abs(q["w2"]).max() <= 127
+
     print(f"float accuracy: val {float_accuracy(model, val_x, val_y):.4f}  "
           f"test {float_accuracy(model, test_x, test_y):.4f}")
+    print(f"int   accuracy: val {(int_forward(q, val_x)[2] == val_y).mean():.4f}  "
+          f"test {(int_forward(q, test_x)[2] == test_y).mean():.4f}")
+    print(f"SHIFT = {q['shift']}")
 
 
 if __name__ == "__main__":
