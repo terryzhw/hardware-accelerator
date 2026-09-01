@@ -1,7 +1,13 @@
-"""Train the 784 -> 32 -> 10 digit network and convert it to integers the way the
-hardware will use them.
+"""Train the 784 -> 32 -> 10 digit network, convert it to integers, and write the
+memory files the hardware loads.
 
     python python/train.py
+
+Outputs
+    rtl/weights.mem     8-bit weights, layer 1 then layer 2 (one hex byte per line)
+    rtl/biases.mem      32-bit biases, layer 1 then layer 2
+
+The integer math here (int_forward) is exactly what the hardware does.
 """
 
 from pathlib import Path
@@ -110,6 +116,16 @@ def int_forward(q, x):
 
 
 # ---------------------------------------------------------------------------
+# Memory files ($readmemh format: one hex value per line, two's complement)
+
+def write_hex(path, values, bits):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mask = (1 << bits) - 1
+    with open(path, "w") as f:
+        for v in np.asarray(values).reshape(-1):
+            f.write(f"{int(v) & mask:0{bits // 4}x}\n")
+
+
 def main():
     (train_x, train_y), (val_x, val_y), (test_x, test_y) = load_mnist()
 
@@ -122,6 +138,9 @@ def main():
     print(f"int   accuracy: val {(int_forward(q, val_x)[2] == val_y).mean():.4f}  "
           f"test {(int_forward(q, test_x)[2] == test_y).mean():.4f}")
     print(f"SHIFT = {q['shift']}")
+
+    write_hex(REPO / "rtl" / "weights.mem", np.concatenate([q["w1"].ravel(), q["w2"].ravel()]), 8)
+    write_hex(REPO / "rtl" / "biases.mem", np.concatenate([q["b1"], q["b2"]]), 32)
 
 
 if __name__ == "__main__":
