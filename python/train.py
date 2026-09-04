@@ -6,8 +6,10 @@ memory files the hardware loads.
 Outputs
     rtl/weights.mem     8-bit weights, layer 1 then layer 2 (one hex byte per line)
     rtl/biases.mem      32-bit biases, layer 1 then layer 2
+    tb/vectors/*.mem    test images and the expected hardware results
 
-The integer math here (int_forward) is exactly what the hardware does.
+The integer math here (int_forward) is exactly what the hardware does, so the testbench
+can check the RTL value by value.
 """
 
 from pathlib import Path
@@ -18,6 +20,7 @@ from torch import nn
 from torchvision import datasets
 
 REPO = Path(__file__).resolve().parent.parent
+NUM_TEST_VECTORS = 50
 
 torch.manual_seed(0)
 
@@ -137,10 +140,20 @@ def main():
           f"test {float_accuracy(model, test_x, test_y):.4f}")
     print(f"int   accuracy: val {(int_forward(q, val_x)[2] == val_y).mean():.4f}  "
           f"test {(int_forward(q, test_x)[2] == test_y).mean():.4f}")
-    print(f"SHIFT = {q['shift']}")
+    print(f"SHIFT = {q['shift']}  (must match the SHIFT parameter in rtl/nn_core.sv)")
 
     write_hex(REPO / "rtl" / "weights.mem", np.concatenate([q["w1"].ravel(), q["w2"].ravel()]), 8)
     write_hex(REPO / "rtl" / "biases.mem", np.concatenate([q["b1"], q["b2"]]), 32)
+
+    # Test vectors: the first few test images and what the hardware should produce
+    x = test_x[:NUM_TEST_VECTORS]
+    hidden, scores, pred = int_forward(q, x)
+    vec = REPO / "tb" / "vectors"
+    write_hex(vec / "images.mem", x, 8)
+    write_hex(vec / "hidden.mem", hidden, 8)
+    write_hex(vec / "scores.mem", scores, 32)
+    write_hex(vec / "pred.mem", pred, 8)
+    print(f"wrote {NUM_TEST_VECTORS} test vectors, labels {test_y[:NUM_TEST_VECTORS].tolist()}")
 
 
 if __name__ == "__main__":
