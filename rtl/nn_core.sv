@@ -51,7 +51,7 @@ module nn_core #(
 
   // Memory reads take one clock: the address goes in this cycle, data comes out next cycle
   always_ff @(posedge clk) begin
-    if (pixel_we) image[pixel_addr] <= pixel_data;
+    if (pixel_we && !busy) image[pixel_addr] <= pixel_data;  // don't change the image mid-run
     if (state == SAVE && layer == 0) hidden[neuron] <= relu_out;
     w          <= weights[w_addr];
     image_out  <= image[i];
