@@ -64,7 +64,8 @@ module nn_top_tb;
 
   // Wait for one reply byte and check it
   task check_reply(input integer v);
-    integer waited = 0;
+    integer waited;
+    waited = 0;
     while (replies.size() == 0 && waited < 1000000) begin
       #10ns;
       waited++;
