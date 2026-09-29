@@ -2,6 +2,7 @@
 // run the network, and send the predicted digit back as one byte
 module nn_top #(
   parameter CLKS_PER_BIT = 868,          // 100 MHz / 115200 baud
+  parameter TIMEOUT      = 10_000_000,   // 100 ms with no new byte -> start the image over
   parameter WEIGHTS_FILE = "weights.mem",
   parameter BIASES_FILE  = "biases.mem"
 ) (
@@ -16,6 +17,7 @@ module nn_top #(
   logic [7:0]  rx_data;
   logic        rx_valid;
   logic [9:0]  pixel_count;
+  logic [31:0] idle_count;
   logic        start, busy, done, tx_busy;
 
   uart_rx #(
@@ -59,15 +61,24 @@ module nn_top #(
   always_ff @(posedge clk) begin
     if (reset) begin
       pixel_count <= 0;
+      idle_count  <= 0;
       start       <= 0;
     end else begin
       start <= 0;
       if (rx_valid) begin
+        idle_count <= 0;
         if (pixel_count == 783) begin
           pixel_count <= 0;
           start       <= 1;
         end else
           pixel_count <= pixel_count + 1;
+      end else if (pixel_count != 0) begin
+        // If the PC stops in the middle of an image, throw the partial image away
+        if (idle_count == TIMEOUT) begin
+          pixel_count <= 0;
+          idle_count  <= 0;
+        end else
+          idle_count <= idle_count + 1;
       end
     end
   end

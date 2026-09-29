@@ -3,6 +3,7 @@
 `timescale 1ns/1ps
 module nn_top_tb;
   localparam CLKS_PER_BIT = 8;      // fast baud rate so the simulation is short
+  localparam TIMEOUT      = 2000;
   localparam BIT_TIME     = CLKS_PER_BIT * 10;  // ns, with a 10 ns clock
 
   logic       clock = 0;
@@ -19,6 +20,7 @@ module nn_top_tb;
   // Instantiate design under test
   nn_top #(
     .CLKS_PER_BIT(CLKS_PER_BIT),
+    .TIMEOUT     (TIMEOUT),
     .WEIGHTS_FILE("../rtl/weights.mem"),
     .BIASES_FILE ("../rtl/biases.mem")
   ) dut (
@@ -94,11 +96,22 @@ module nn_top_tb;
     reset = 0;
     #100ns;
 
-    // Four images in a row
-    for (int v = 0; v < 4; v++) begin
+    // Three images in a row
+    for (int v = 0; v < 3; v++) begin
       send_image(v);
       check_reply(v);
     end
+
+    // Stop halfway through an image. After the timeout the FPGA should forget it,
+    // send nothing back, and handle the next full image normally.
+    for (int p = 0; p < 300; p++) send_byte(8'h7f);
+    #(TIMEOUT * 10ns * 2);
+    if (replies.size() != 0) begin
+      $display("FAIL got a reply for a partial image");
+      errors = errors + 1;
+    end
+    send_image(3);
+    check_reply(3);
 
     if (errors == 0)
       $display("PASS: nn_top_tb");
