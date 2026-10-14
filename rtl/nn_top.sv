@@ -1,5 +1,5 @@
 // Top level: receive a 28x28 image over UART (784 bytes, one per pixel),
-// run the network, and send the predicted digit back as one byte
+// run the network, send the predicted digit back as one byte, and show it on the 7-seg
 module nn_top #(
   parameter CLKS_PER_BIT = 868,          // 100 MHz / 115200 baud
   parameter TIMEOUT      = 10_000_000,   // 100 ms with no new byte -> start the image over
@@ -10,7 +10,9 @@ module nn_top #(
   reset,
   input  logic       uart_rx_pin,
   output logic       uart_tx_pin,
-  output logic [3:0] prediction
+  output logic [3:0] prediction,
+  output logic [6:0] seg,
+  output logic [7:0] an
 );
 
   // Local net declaration
@@ -19,6 +21,7 @@ module nn_top #(
   logic [9:0]  pixel_count;
   logic [31:0] idle_count;
   logic        start, busy, done, tx_busy;
+  logic        have_result;  // 0 until the first image finishes, keeps the display blank
 
   uart_rx #(
     .CLKS_PER_BIT(CLKS_PER_BIT)
@@ -56,6 +59,20 @@ module nn_top #(
     .busy (tx_busy),
     .tx   (uart_tx_pin)
   );
+
+  seven_seg seven_seg_instance (
+    .digit(prediction),
+    .blank(!have_result),
+    .seg  (seg),
+    .an   (an)
+  );
+
+  always_ff @(posedge clk) begin
+    if (reset)
+      have_result <= 0;
+    else if (done)
+      have_result <= 1;
+  end
 
   // Byte n is pixel n. After the last pixel, start the network.
   always_ff @(posedge clk) begin

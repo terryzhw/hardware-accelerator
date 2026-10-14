@@ -11,6 +11,8 @@ module nn_top_tb;
   logic       rx_pin = 1;           // PC -> FPGA
   logic       tx_pin;               // FPGA -> PC
   logic [3:0] prediction;
+  logic [6:0] seg;
+  logic [7:0] an;
 
   logic [7:0] images   [50 * 784];
   logic [7:0] exp_pred [50];
@@ -28,7 +30,9 @@ module nn_top_tb;
     .reset      (reset),
     .uart_rx_pin(rx_pin),
     .uart_tx_pin(tx_pin),
-    .prediction (prediction)
+    .prediction (prediction),
+    .seg        (seg),
+    .an         (an)
   );
 
   // Clock generator logic
@@ -76,9 +80,9 @@ module nn_top_tb;
       $display("FAIL image %0d: no reply", v);
       errors = errors + 1;
     end else begin
-      if (replies[0] !== exp_pred[v] || prediction !== exp_pred[v]) begin
-        $display("FAIL image %0d: expected=%0d reply=%0d display=%0d",
-                 v, exp_pred[v], replies[0], prediction);
+      if (replies[0] !== exp_pred[v] || prediction !== exp_pred[v] || an !== 8'b11111110) begin
+        $display("FAIL image %0d: expected=%0d reply=%0d prediction=%0d an=%b",
+                 v, exp_pred[v], replies[0], prediction, an);
         errors = errors + 1;
       end else
         $display("image %0d: FPGA says %0d", v, replies[0]);
@@ -95,6 +99,12 @@ module nn_top_tb;
     #100ns;
     reset = 0;
     #100ns;
+
+    // Display should be off until the first answer
+    if (an !== 8'b11111111 || seg !== 7'b1111111) begin
+      $display("FAIL display is on before any image: seg=%b an=%b", seg, an);
+      errors = errors + 1;
+    end
 
     // Three images in a row
     for (int v = 0; v < 3; v++) begin
