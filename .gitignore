@@ -17,6 +17,10 @@ xsim.dir/
 *.str
 build/
 vivado_project/
+nn_top/
 
 # Local tool settings
 .claude/
+
+# Personal notes
+info.md
