@@ -3,7 +3,15 @@ SystemVerilog digit recognizer
 
 Work in Progress
 
+# Block Diagram
 ![block_diagram](docs/block_diagram.png)
+
+# Timing Summary
+<img width="1244" height="352" alt="image" src="https://github.com/user-attachments/assets/48d23137-ff57-44dd-aa48-b2f98e71cabe" />
+
+# Utilization
+<img width="1252" height="324" alt="image" src="https://github.com/user-attachments/assets/633c42bf-8f25-43ee-b4c2-7dc07305fc26" />
+
 
 # How does it work
 
